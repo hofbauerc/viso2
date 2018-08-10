@@ -19,7 +19,7 @@ libviso2; if not, write to the Free Software Foundation, Inc., 51 Franklin
 Street, Fifth Floor, Boston, MA 02110-1301, USA 
 */
 
-#include "viso_stereo.h"
+#include <libviso2/viso_stereo.h>
 
 using namespace std;
 
@@ -129,6 +129,262 @@ vector<double> VisualOdometryStereo::estimateMotion (vector<Matcher::p_match> p_
   } else {
     success = false;
   }
+
+
+  // Try to estimate the covariance based on SVD
+  {
+      Matrix A(6, 6);
+      // fill matrices A and B
+      for (int32_t m=0; m<6; m++)
+      {
+          for (int32_t n=0; n<6; n++)
+          {
+              double a = 0;
+              for (int32_t i=0; i<4*(int32_t)inliers.size(); i++)
+              {
+                  a += J[i*6+m]*J[i*6+n];
+              }
+              A.val[m][n] = a;
+          }
+      }
+
+      // Compute the svd
+      Matrix U(6,6);
+      Matrix V(6,6);
+      Matrix w(6,1);
+      Matrix c0(6,1);
+      Matrix c1(6,1);
+      A.svd(U, c0, V);
+
+      // Covariances based on singular values
+      for (int32_t m=0; m<6; m++)
+          c0.val[m][0] = param.cov_svd_factor / sqrt(c0.val[m][0]);
+
+      // Absolut values of V
+      for (int32_t m=0; m<6; m++)
+          for (int32_t n=0; n<6; n++)
+              V.val[m][n] = fabs(V.val[m][n]);
+
+      // Relate singular values with parameters
+      c1 = V * c0;
+
+      // Set the covariances
+      if (covariance.size() != 6)
+          covariance.resize(6, 0.0);
+
+      for (int32_t m=0; m<6; m++)
+          covariance[m] = c1.val[m][0];
+  }
+
+//  // Try to estimate the covariance
+//  {
+//      if (success)
+//      {
+//          u_int32_t nofTrials = 400;
+//
+//          // Initialize the result
+//          vector<double> tr_delta_samp;
+//          vector<double> tr_delta_sum1;
+//          vector<double> tr_delta_sum2;
+//          vector<double> tr_delta_mean;
+//          vector<double> tr_delta_vari;
+//          tr_delta_samp.resize(6);
+//          tr_delta_sum1.resize(6, 0.0);
+//          tr_delta_sum2.resize(6, 0.0);
+//          tr_delta_mean.resize(6, 0.0);
+//          tr_delta_vari.resize(6, 0.0);
+//
+//          // Initialize the noisy matches
+//          vector<Matcher::p_match> p_matched_noisy;
+//          p_matched_noisy.resize(p_matched.size());
+//
+//          for (size_t i = 0; i < p_matched.size(); ++i)
+//              p_matched_noisy[i] = p_matched[i];
+//
+//          // Open output file
+//
+//          // Open the file for binary writing
+//          std::ofstream paramsstream;
+//          std::stringstream fn;
+//          fn.str("");
+//          fn << "/home/administrator/data/DEBUG/VO_covariance_tests/data/params_" << rand() << ".txt";
+//          paramsstream.open(fn.str().c_str(), std::ios::out | std::ios::trunc);
+//          if (!paramsstream.is_open())
+//              std::cout << "Opening estimates file failed!" << std::endl;
+//
+//          // Perform the trials
+//          for (u_int32_t ell = 0; ell < nofTrials; ++ell)
+//          {
+//              // Reset
+//              for (int32_t i=0; i<6; i++)
+//                  tr_delta_samp[i] = tr_delta[i];
+//
+//              // Create a random sample by adding noise to inliers
+//              for (size_t i = 0; i < inliers.size(); ++i)
+//              {
+//                  int32_t idx = inliers[i];
+//
+//                  p_matched_noisy[idx].u1c = p_matched[idx].u1c + (float)(((rand() % 401) - 200)) * 0.01;
+//                  p_matched_noisy[idx].u1p = p_matched[idx].u1p + (float)(((rand() % 401) - 200)) * 0.01;
+//                  p_matched_noisy[idx].u2c = p_matched[idx].u2c + (float)(((rand() % 401) - 200)) * 0.01;
+//                  p_matched_noisy[idx].u2p = p_matched[idx].u2p + (float)(((rand() % 401) - 200)) * 0.01;
+//
+//                  p_matched_noisy[idx].v1c = p_matched[idx].v1c + (float)(((rand() % 401) - 200)) * 0.01;
+//                  p_matched_noisy[idx].v1p = p_matched[idx].v1p + (float)(((rand() % 401) - 200)) * 0.01;
+//                  p_matched_noisy[idx].v2c = p_matched[idx].v2c + (float)(((rand() % 401) - 200)) * 0.01;
+//                  p_matched_noisy[idx].v2p = p_matched[idx].v2p + (float)(((rand() % 401) - 200)) * 0.01;
+//
+//                  double d = max(p_matched_noisy[idx].u1p - p_matched_noisy[idx].u2p,1.0f);
+//                  X[idx] = (p_matched_noisy[idx].u1p-param.calib.cu)*param.base/d;
+//                  Y[idx] = (p_matched_noisy[idx].v1p-param.calib.cv)*param.base/d;
+//                  Z[idx] = param.calib.f*param.base/d;
+//              }
+//
+//              // Optimization
+//              int32_t iter=0;
+//              VisualOdometryStereo::result result = UPDATED;
+//              while (result==UPDATED)
+//              {
+//                  result = updateParameters(p_matched_noisy,inliers,tr_delta_samp,1,1e-8);
+//                  if (iter++ > 50 || result==CONVERGED)
+//                      break;
+//              }
+//
+//              // Store the result
+//              for (int32_t i=0; i<6; i++)
+//              {
+//                  tr_delta_sum1[i] += tr_delta_samp[i];
+//                  tr_delta_sum2[i] += (tr_delta_samp[i] * tr_delta_samp[i]);
+//
+//                  paramsstream << std::fixed << std::setprecision(15) << tr_delta_samp[i] << " ";
+//              }
+//              paramsstream << iter << " " << inliers.size();
+//              paramsstream << std::endl;
+//          }
+//
+//          // Mean and variance
+//          double scale = 1.0 / ((double)nofTrials);
+//
+//          for (int32_t i=0; i<6; i++)
+//          {
+//              tr_delta_mean[i] = tr_delta_sum1[i] * scale;
+//              tr_delta_vari[i] = tr_delta_sum2[i] * scale - tr_delta_mean[i] * tr_delta_mean[i];
+//
+//              paramsstream << std::fixed << std::setprecision(15) << tr_delta_mean[i] << " ";
+//              paramsstream << std::fixed << std::setprecision(15) << tr_delta_vari[i] << " ";
+//          }
+//          paramsstream << std::endl;
+//
+//          // Check if the writing was successful
+//          if (!paramsstream.good())
+//              std::cout << "Writing file failed!" << std::endl;
+//
+//          // Close the file
+//          paramsstream.close();
+//
+//          // Write file for checking correlation of nof inliers and variances
+//          fn.str("");
+//          fn << "/home/administrator/data/DEBUG/VO_covariance_tests/correlation.txt";
+//          std::ofstream corrstream;
+//          corrstream.open(fn.str().c_str(), std::ios::out | std::ios::app);
+//
+//          if (!corrstream.is_open())
+//              std::cout << "Opening correlation file failed!" << std::endl;
+//
+//          // Write inliers and variances
+//          corrstream << inliers.size() << " ";
+//          for (int32_t i=0; i<6; i++)
+//              corrstream << std::fixed << std::setprecision(15) << tr_delta_vari[i] << " ";
+//
+//          corrstream << std::endl;
+//
+//          // Check if the writing was successful
+//          if (!corrstream.good())
+//              std::cout << "Writing correlation file failed!" << std::endl;
+//
+//          // Close the file
+//          corrstream.close();
+//      }
+//  }
+
+//  {
+//      // Disturb the result and check the resulting residuals
+//      double dMin[] = {-0.05,   -0.05,   -0.05,   -0.1,   -0.1,   -0.1};
+//      double dMax[] = { 0.05,    0.05,    0.05,    0.1,    0.1,    0.1};
+//      double ds[]   = { 0.0025,  0.0025,  0.0025,  0.005,  0.005,  0.005};
+//
+//      vector<double> tr_delta_samp;
+//      tr_delta_samp.resize(6);
+//
+//      vector<double> residuals;
+//      residuals.resize(4);
+//
+//      // Open the file for binary writing
+//      std::ofstream deltastream;
+//      std::stringstream fn;
+//      fn.str("");
+//      fn << "/home/administrator/data/DEBUG/VO_covariance_tests/deltas/deltas_" << rand() << ".txt";
+//      deltastream.open(fn.str().c_str(), std::ios::out | std::ios::trunc);
+//      if (!deltastream.is_open())
+//          std::cout << "Opening delta file failed!" << std::endl;
+//
+//      for (int32_t i = 0; i < 6; ++i)
+//      {
+//          double delta = dMin[i];
+//
+//          deltastream << i << std::endl;
+//
+//          // for all offsets in the range
+//          while (delta < dMax[i])
+//          {
+//              // Create the transform
+//              for (int32_t j = 0; j < 6; ++j)
+//                  tr_delta_samp[j] = tr_delta[j];
+//
+//              tr_delta_samp[i] += delta;
+//
+//              // Update the transform (which computes the residuals
+//              updateParameters(p_matched,inliers,tr_delta_samp,1,1e-8);
+//
+//              // Compute the mean residuals
+//              // for all observations do
+//              for (int32_t k=0; k<4; k++)
+//                  residuals[k] = 0.0;
+//
+//              for (int32_t k=0; k<(int32_t)inliers.size(); k++)
+//              {
+//                  // set residuals
+//                  residuals[0] += fabs(p_residual[4*k+0]);
+//                  residuals[1] += fabs(p_residual[4*k+1]);
+//                  residuals[2] += fabs(p_residual[4*k+2]);
+//                  residuals[3] += fabs(p_residual[4*k+3]);
+//              }
+//
+//              double scale = 1.0 / ((double)inliers.size());
+//              for (int32_t k=0; k<4; k++)
+//                  residuals[k] *= scale;
+//
+//              // Write to the file
+//              deltastream << delta;
+//              for (int32_t k=0; k<4; k++)
+//                  deltastream << " " << residuals[k];
+//              deltastream << std::endl;
+//
+//              // Update the parameter offset
+//              delta += ds[i];
+//          }
+//
+//          deltastream << std::endl;
+//      }
+//
+//
+//      // Check if the writing was successful
+//      if (!deltastream.good())
+//          std::cout << "Writing delta file failed!" << std::endl;
+//
+//      // Close the file
+//      deltastream.close();
+//  }
 
   // release dynamic memory
   delete[] X;

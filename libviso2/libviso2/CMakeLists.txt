@@ -6,7 +6,7 @@ project (libviso2)
 set (LIBVISO2_SRC_DIR src)
 
 # include directory
-include_directories("${LIBVISO2_SRC_DIR}")
+include_directories(include)
 
 # use sse3 instruction set
 if(ARM_CROSS_COMPILATION)

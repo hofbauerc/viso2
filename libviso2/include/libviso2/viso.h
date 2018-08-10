@@ -96,7 +96,10 @@ public:
     
   // returns the indices of all inliers
   std::vector<int32_t> getInlierIndices () { return inliers; }
-  
+
+  // returns the covariance of the latest estimate
+  const std::vector<double>& getCovariance () { return covariance; }
+
   // given a vector of inliers computes gain factor between the current and
   // the previous frame. this function is useful if you want to reconstruct 3d
   // and you want to cancel the change of (unknown) camera gain.
@@ -134,7 +137,8 @@ protected:
   double                        *p_observe;  // observed 2d points
   double                        *p_predict;  // predicted 2d points
   std::vector<Matcher::p_match>  p_matched;  // feature point matches
-  
+  std::vector<double>            covariance; // estimate of the covariance
+
 private:
   
   parameters                    param;     // common parameters

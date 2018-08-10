@@ -1,0 +1,111 @@
+<!-- -*- mode: XML -*- -->
+
+<launch>
+
+  <!--..........................................................................................................-->
+  <!-- arguments to be set -->
+	<!-- frames -->
+	<arg name="frame_odom" 						  default="/odom" />
+	<arg name="frame_base_link" 			  default="/base_link" />
+	<arg name="frame_postfix_sensor" 	  default="/sensor" />
+
+	<!-- stereo and image names -->
+	<arg name="stereo_namespace" 			  default="stereo" />
+	<arg name="image" 			            default="rect" />
+	<arg name="node_postfix" 			      default="" />
+	<arg name="use_republished"				  default="false" />
+	<arg name="nmspc_repub" 			      default="republished" />
+
+	<arg name="initialize_pose_as_id"   default="true" />
+	<arg name="publish_tf" 						  default="true" />
+	<arg name="wait_for_base_to_sensor" default="false" />
+	<arg name="wait_for_velocities" 	  default="false" />
+	<arg name="ref_frame_change_method" default="1" />
+	<arg name="ref_frame_motion_threshold" default="5.0" />
+
+	<!-- matching parameters -->
+	<arg name="bucket_width" 					  default="70.0" />
+	<arg name="bucket_height" 				  default="70.0" />
+	<arg name="max_features" 					  default="6" />
+	<arg name="match_radius" 					  default="300" />
+	<arg name="match_disp_tolerance" 	  default="2" />
+	<arg name="outlier_disp_tolerance" 	default="5" />
+	<arg name="outlier_flow_tolerance" 	default="5" />
+	<arg name="inlier_threshold" 	      default="1.5" />
+
+	<!-- covariance parameters -->
+	<!-- inlier based -->
+  <arg name="nof_inliers_min"					default="150" />
+  <arg name="nof_inliers_ok"					default="250" />
+  <arg name="nof_inliers_good"				default="450" />
+  <arg name="cov_pos_min"						  default="0.5" />
+  <arg name="cov_pos_ok"						  default="0.2" />
+  <arg name="cov_pos_good"					  default="0.02" />
+  <arg name="cov_ori_min"						  default="0.2" />
+  <arg name="cov_ori_ok"						  default="0.05" />
+  <arg name="cov_ori_good"					  default="0.01" />
+	<!-- SVD based -->
+  <arg name="cov_from_svd"					  default="0" />
+  <arg name="cov_svd_factor"				  default="200.0" />
+
+
+	<arg name="output_type" 					  default="screen" />
+	<arg name="launch_prefix" 				  default="xterm -hold -geometry 105x19 -e" />
+  <arg name="do_respawn"              default="true" />
+
+
+  <!--..........................................................................................................-->
+  <!-- derived arguments -->
+	<remap from="$(arg stereo_namespace)/left/camera_info"  to="$(arg stereo_namespace)/left/CamInfo" />
+	<remap from="$(arg stereo_namespace)/right/camera_info" to="$(arg stereo_namespace)/right/CamInfo" />
+
+	<remap from="stereo" 	to="$(arg stereo_namespace)" />
+	<remap from="image" 	to="$(arg image)"                     unless="$(arg use_republished)" />
+	<remap from="image" 	to="$(arg image)/$(arg nmspc_repub)"  if="$(arg use_republished)" />
+
+
+  <!--..........................................................................................................-->
+  <!-- launching the node -->
+	<node pkg="viso2_ros" type="stereo_odometer" name="stereo_odometer$(arg node_postfix)" 
+        output="$(arg output_type)" launch-prefix="$(arg launch_prefix)" respawn="$(arg do_respawn)" respawn_delay="2.0"
+		    args=''> 
+
+		<param name="base_link_frame_id" 		  type="str" value="$(arg frame_base_link)" />
+		<param name="sensor_frame_id" 			  type="str" value="$(arg stereo_namespace)$(arg frame_postfix_sensor)" />
+		<param name="odom_frame_id" 				  type="str" value="$(arg frame_odom)" />
+
+		<param name="bucket_width" 					  type="double" value="$(arg bucket_width)" />
+		<param name="bucket_height" 				  type="double" value="$(arg bucket_height)" />
+		<param name="max_features" 					  type="int" 		value="$(arg max_features)" />
+		<param name="match_radius" 					  type="int" 		value="$(arg match_radius)" />
+  	<param name="match_disp_tolerance" 		type="int" 	  value="$(arg match_disp_tolerance)" />
+	  <param name="outlier_disp_tolerance" 	type="int" 	  value="$(arg outlier_disp_tolerance)" />
+  	<param name="outlier_flow_tolerance" 	type="int" 	  value="$(arg outlier_flow_tolerance)" />
+  	<param name="inlier_threshold" 	      type="double" value="$(arg inlier_threshold)" />
+		<param name="initialize_pose_as_id"   type="bool"   value="$(arg initialize_pose_as_id)" />
+		<param name="publish_tf" 						  type="bool"   value="$(arg publish_tf)" />
+		<param name="wait_for_base_to_sensor" type="bool"   value="$(arg wait_for_base_to_sensor)" />
+		<param name="wait_for_velocities" 	  type="bool"   value="$(arg wait_for_velocities)" />
+		<param name="ref_frame_change_method" type="int"    value="$(arg ref_frame_change_method)" />
+		<param name="ref_frame_motion_threshold" type="double" value="$(arg ref_frame_motion_threshold)" />
+
+    <param name="nof_inliers_min"				  type="int" 		value="$(arg nof_inliers_min)" />
+    <param name="nof_inliers_ok"				  type="int" 		value="$(arg nof_inliers_ok)" />
+    <param name="nof_inliers_good"			  type="int" 		value="$(arg nof_inliers_good)" />
+
+    <param name="cov_pos_min"						  type="double" value="$(arg cov_pos_min)" />
+    <param name="cov_pos_ok"						  type="double" value="$(arg cov_pos_ok)" />
+    <param name="cov_pos_good"					  type="double" value="$(arg cov_pos_good)" />
+
+    <param name="cov_ori_min"						  type="double" value="$(arg cov_ori_min)" />
+    <param name="cov_ori_ok"						  type="double" value="$(arg cov_ori_ok)" />
+    <param name="cov_ori_good"					  type="double" value="$(arg cov_ori_good)" />
+
+    <param name="cov_from_svd"					  type="int"    value="$(arg cov_from_svd)" />
+    <param name="cov_svd_factor"				  type="double" value="$(arg cov_svd_factor)" />
+
+		<param name="file_trajectory" 			  type="str"    value="" />
+
+	</node>
+
+</launch>

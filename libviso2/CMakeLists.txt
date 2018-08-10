@@ -13,11 +13,13 @@ else(ARM_CROSS_COMPILATION)
 endif(ARM_CROSS_COMPILATION)
 
 catkin_package(
-  INCLUDE_DIRS libviso2/src
+  INCLUDE_DIRS include libviso2/src
   LIBRARIES viso2
 )
 
-include_directories(libviso2/src
+include_directories(
+  include
+  libviso2/src
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -37,8 +39,11 @@ install(TARGETS viso2
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-install(DIRECTORY ${PROJECT_NAME}/src
+## Mark cpp header files for installation
+install(DIRECTORY include/${PROJECT_NAME}/
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.h*"
   PATTERN ".cpp" EXCLUDE
+  PATTERN ".svn" EXCLUDE
 )
 

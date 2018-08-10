@@ -37,7 +37,12 @@ else(ARM_CROSS_COMPILATION)
   add_definitions(-msse3)
 endif(ARM_CROSS_COMPILATION)
 
-include_directories(src ${libviso2_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS})
+include_directories(
+    include
+    src
+    ${libviso2_INCLUDE_DIRS}/libviso2
+    ${catkin_INCLUDE_DIRS}
+)
 
 add_executable(stereo_odometer
   src/stereo_odometer.cpp)
@@ -55,5 +60,31 @@ include_directories(${Boost_INCLUDE_DIRS})
 target_link_libraries(stereo_odometer ${Boost_LIBRARIES} ${catkin_LIBRARIES})
 target_link_libraries(mono_odometer ${OpenCV_LIBRARIES} ${catkin_LIBRARIES})
 
+#############
+## Install ##
+#############
 
+# all install targets should use catkin DESTINATION variables
+# See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
+
+## Mark executable scripts (Python etc.) for installation
+## in contrast to setup.py, you can choose the destination
+# install(PROGRAMS
+#   scripts/my_python_script
+#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
+
+## Mark executables and/or libraries for installation
+install(TARGETS stereo_odometer
+    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+    )
+
+## Mark other files for installation (e.g. launch and bag files, etc.)
+install(FILES
+    launch/stereo_odometer.launch
+    # myfile2
+    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+    )
 

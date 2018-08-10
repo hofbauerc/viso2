@@ -1,11 +1,12 @@
 #include <ros/ros.h>
 #include <sensor_msgs/image_encodings.h>
 #include <image_geometry/stereo_camera_model.h>
+#include <diagnostic_msgs/DiagnosticStatus.h>
 #include <cv_bridge/cv_bridge.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl/point_types.h>
 
-#include <viso_stereo.h>
+#include <libviso2/viso_stereo.h>
 
 #include <viso2_ros/VisoInfo.h>
 
@@ -16,31 +17,42 @@
 // to remove after debugging
 #include <opencv2/highgui/highgui.hpp>
 
+/** Create a feature flow visualization window */
+//#define DBG_CREATE_VISUALIZATION_IMAGES
+#ifdef DBG_CREATE_VISUALIZATION_IMAGES
+/** Provide a "path/to/images" for storing flow visualization images there */
+#define DBG_CREATE_VISUALIZATION_IMAGES_PATH "/path/to/images"
+#include <opencv2/contrib/contrib.hpp>
+#include <opencv2/opencv.hpp>
+#include <strstream>
+#endif
+
+
 namespace viso2_ros
 {
 
 // some arbitrary values (0.1m^2 linear cov. 10deg^2. angular cov.)
 static const boost::array<double, 36> STANDARD_POSE_COVARIANCE =
 { { 0.1, 0, 0, 0, 0, 0,
-    0, 0.1, 0, 0, 0, 0,
-    0, 0, 0.1, 0, 0, 0,
-    0, 0, 0, 0.17, 0, 0,
-    0, 0, 0, 0, 0.17, 0,
-    0, 0, 0, 0, 0, 0.17 } };
+		0, 0.1, 0, 0, 0, 0,
+		0, 0, 0.1, 0, 0, 0,
+		0, 0, 0, 0.17, 0, 0,
+		0, 0, 0, 0, 0.17, 0,
+		0, 0, 0, 0, 0, 0.17 } };
 static const boost::array<double, 36> STANDARD_TWIST_COVARIANCE =
-{ { 0.002, 0, 0, 0, 0, 0,
-    0, 0.002, 0, 0, 0, 0,
-    0, 0, 0.05, 0, 0, 0,
-    0, 0, 0, 0.09, 0, 0,
-    0, 0, 0, 0, 0.09, 0,
-    0, 0, 0, 0, 0, 0.09 } };
+{ { 0.05, 0, 0, 0, 0, 0,
+		0, 0.05, 0, 0, 0, 0,
+		0, 0, 0.05, 0, 0, 0,
+		0, 0, 0, 0.09, 0, 0,
+		0, 0, 0, 0, 0.09, 0,
+		0, 0, 0, 0, 0, 0.09 } };
 static const boost::array<double, 36> BAD_COVARIANCE =
-{ { 9999, 0, 0, 0, 0, 0,
-    0, 9999, 0, 0, 0, 0,
-    0, 0, 9999, 0, 0, 0,
-    0, 0, 0, 9999, 0, 0,
-    0, 0, 0, 0, 9999, 0,
-    0, 0, 0, 0, 0, 9999 } };
+{ { 99999, 0, 0, 0, 0, 0,
+		0, 99999, 0, 0, 0, 0,
+		0, 0, 99999, 0, 0, 0,
+		0, 0, 0, 99999, 0, 0,
+		0, 0, 0, 0, 99999, 0,
+		0, 0, 0, 0, 0, 99999 } };
 
 
 class StereoOdometer : public StereoProcessor, public OdometerBase
@@ -53,6 +65,7 @@ private:
 
   ros::Publisher point_cloud_pub_;
   ros::Publisher info_pub_;
+  ros::Publisher diagnostic_pub_;
 
   bool got_lost_;
 
@@ -81,15 +94,64 @@ public:
 
     point_cloud_pub_ = local_nh.advertise<PointCloud>("point_cloud", 1);
     info_pub_ = local_nh.advertise<VisoInfo>("info", 1);
+    diagnostic_pub_ = local_nh.advertise<diagnostic_msgs::DiagnosticStatus>("diagnostic", 1);
 
     reference_motion_ = Matrix::eye(4);
+
+#ifdef DBG_EXPORT_TRAJECTORY
+    std::string 	fnTraj;
+		if (local_nh.getParam("file_trajectory",     fnTraj))
+		{
+			// Open the file for binary writing
+			posestream_.open(fnTraj.c_str(), std::ios::out | std::ios::trunc);
+
+			if (posestream_.is_open())
+			{
+		    	posestream_
+		    		<< "stamp_sec, "
+		    		<< "stamp_nsec, "
+		    		<< "position_x, "
+		    		<< "position_y, "
+		    		<< "position_z, "
+		    		<< "orientation_x, "
+		    		<< "orientation_y, "
+		    		<< "orientation_z, "
+		    		<< "orientation_w, "
+		    		<< "twist_linear_x, "
+		    		<< "twist_linear_y, "
+		    		<< "twist_linear_z, "
+		    		<< "twist_angular_x, "
+		    		<< "twist_angular_y, "
+		    		<< "twist_angular_z, "
+		    		<< "cam_position_x, "
+					  << "cam_position_y, "
+					  << "cam_position_z, "
+		    		<< "cam_orientation_x, "
+		    		<< "cam_orientation_y, "
+		    		<< "cam_orientation_z, "
+		    		<< "cam_orientation_w, "
+					  << "nof_inliers" << std::endl;
+
+		    	posestream_.flush();
+			}
+			else
+			{
+				ROS_ERROR("Cannot open file %s", fnTraj.c_str());
+				throw(-3);
+			}
+		}
+		else
+		{
+			ROS_WARN("No trajctory filename provided!");
+		}
+#endif
   }
 
 protected:
 
   void initOdometer(
-      const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-      const sensor_msgs::CameraInfoConstPtr& r_info_msg)
+    const sensor_msgs::CameraInfoConstPtr& l_info_msg,
+    const sensor_msgs::CameraInfoConstPtr& r_info_msg)
   {
     int queue_size;
     bool approximate_sync;
@@ -101,10 +163,10 @@ protected:
     // to fill remaining parameters
     image_geometry::StereoCameraModel model;
     model.fromCameraInfo(*l_info_msg, *r_info_msg);
-    visual_odometer_params_.base      = model.baseline();
-    visual_odometer_params_.calib.cu  = model.left().cx();
-    visual_odometer_params_.calib.cv  = model.left().cy();
-    visual_odometer_params_.calib.f   = model.left().fx();
+    visual_odometer_params_.base = model.baseline();
+    visual_odometer_params_.calib.cu = model.left().cx();
+    visual_odometer_params_.calib.cv = model.left().cy();
+    visual_odometer_params_.calib.f = model.left().fx();
 
     visual_odometer_.reset(new VisualOdometryStereo(visual_odometer_params_));
     if (l_info_msg->header.frame_id != "") setSensorFrameId(l_info_msg->header.frame_id);
@@ -125,6 +187,9 @@ protected:
       const sensor_msgs::CameraInfoConstPtr& r_info_msg)
   {
     ros::WallTime start_time = ros::WallTime::now();
+		ros::Time start_time_ros(start_time.sec, start_time.nsec);
+		ros::Duration delay = ros::Time::now() - l_image_msg->header.stamp;
+		ROS_INFO("Input delay: %.3f", delay.toSec());
     bool first_run = false;
     // create odometer if not exists
     if (!visual_odometer_)
@@ -161,6 +226,18 @@ protected:
         tf::Transform delta_transform;
         delta_transform.setIdentity();
         integrateAndPublish(delta_transform, l_image_msg->header.stamp);
+#ifdef DBG_EXPORT_TRAJECTORY
+        // Number of inliers
+        if (posestream_.is_open())
+        {
+          posestream_ << visual_odometer_->getNumberOfInliers() << std::endl;
+          posestream_.flush();
+        }
+        else
+        {
+          ROS_WARN("posestream not open");
+        }
+#endif
       }
     }
     else
@@ -188,6 +265,10 @@ protected:
         }
         reference_motion_ = motion; // store last motion as reference
 
+        std::vector<Matcher::p_match> matches = visual_odometer_->getMatches();
+        std::vector<int> inlier_indices = visual_odometer_->getInlierIndices();
+
+        // Set up delta
         tf::Matrix3x3 rot_mat(
           camera_motion.val[0][0], camera_motion.val[0][1], camera_motion.val[0][2],
           camera_motion.val[1][0], camera_motion.val[1][1], camera_motion.val[1][2],
@@ -195,17 +276,165 @@ protected:
         tf::Vector3 t(camera_motion.val[0][3], camera_motion.val[1][3], camera_motion.val[2][3]);
         tf::Transform delta_transform(rot_mat, t);
 
-        setPoseCovariance(STANDARD_POSE_COVARIANCE);
-        setTwistCovariance(STANDARD_TWIST_COVARIANCE);
+        // Publish diagnostics
+        diagnostic_msgs::DiagnosticStatus ds;
+        ds.hardware_id = ros::this_node::getName();
+        ds.level = diagnostic_msgs::DiagnosticStatus::OK;
+        ds.name = ros::this_node::getName();
+        ds.message = "";
+        ds.values.resize(1);
+        ds.values[0].key = "d";
+        ds.values[0].value = "0.0";
+        diagnostic_pub_.publish(ds);
+
+        // Set the covariance
+        switch (cov_mode_)
+        {
+          case CovModeStandard:
+          {
+            setPoseCovariance(STANDARD_POSE_COVARIANCE);
+            setTwistCovariance(STANDARD_TWIST_COVARIANCE);
+            break;
+          }
+          case CovModeInlierBased:
+          {
+            // Set covariance based on number of inliers
+            double covPos = 999999.0, covOri = 999999.0;
+
+            int nof_inliers = visual_odometer_->getNumberOfInliers();
+
+            double w1 = 0.0, w2 = 0.0;
+
+            if (nof_inliers > nof_inliers_min_)
+            {
+              if (nof_inliers > nof_inliers_ok_)
+              {
+                // Matching is good
+                nof_inliers = nof_inliers > nof_inliers_good_ ? nof_inliers_good_ : nof_inliers;
+                w2 = (double)(nof_inliers - nof_inliers_ok_) / (double)(nof_inliers_good_ - nof_inliers_ok_);
+                w1 = 1.0 - w2;
+                covPos = w1 * cov_pos_ok_ + w2 * cov_pos_good_;
+                covOri = w1 * cov_ori_ok_ + w2 * cov_ori_good_;
+              }
+              else
+              {
+                // Matching is useable
+                w2 = (double)(nof_inliers - nof_inliers_min_) / (double)(nof_inliers_ok_ - nof_inliers_min_);
+                w1 = 1.0 - w2;
+                covPos = w1 * cov_pos_min_ + w2 * cov_pos_ok_;
+                covOri = w1 * cov_ori_min_ + w2 * cov_ori_ok_;
+              }
+            }
+
+            ROS_INFO("nof inliers: %d  pos: %.3f  ori: %.3f", nof_inliers, covPos, covOri);
+
+            boost::array<double, 36> pose_covariance =
+              { { covPos, 0, 0, 0, 0, 0,
+                  0, covPos, 0, 0, 0, 0,
+                  0, 0, covPos, 0, 0, 0,
+                  0, 0, 0, covOri, 0, 0,
+                  0, 0, 0, 0, covOri, 0,
+                  0, 0, 0, 0, 0, covOri } };
+
+            setPoseCovariance(pose_covariance);
+            setTwistCovariance(pose_covariance);
+            break;
+          }
+          case CovModeSvd:
+          {
+            // Set the covariance from the estimation
+            boost::array<double, 36> pose_covariance =
+              { { visual_odometer_->getCovariance()[3], 0, 0, 0, 0, 0,
+                  0, visual_odometer_->getCovariance()[4], 0, 0, 0, 0,
+                  0, 0, visual_odometer_->getCovariance()[5], 0, 0, 0,
+                  0, 0, 0, visual_odometer_->getCovariance()[0], 0, 0,
+                  0, 0, 0, 0, visual_odometer_->getCovariance()[1], 0,
+                  0, 0, 0, 0, 0, visual_odometer_->getCovariance()[2] } };
+
+            setPoseCovariance(pose_covariance);
+            setTwistCovariance(pose_covariance);
+
+            ROS_DEBUG("cov in camera: %.3f %.3f %.3f %.3f %.3f %.3f",
+                      pose_covariance[ 0], pose_covariance[ 7], pose_covariance[14],
+                      pose_covariance[21], pose_covariance[28], pose_covariance[35]);
+
+            break;
+          }
+          default:
+            break;
+        }
 
         integrateAndPublish(delta_transform, l_image_msg->header.stamp);
 
         if (point_cloud_pub_.getNumSubscribers() > 0)
         {
-          computeAndPublishPointCloud(l_info_msg, l_image_msg, r_info_msg,
-                                      visual_odometer_->getMatches(),
-                                      visual_odometer_->getInlierIndices());
+					computeAndPublishPointCloud(l_info_msg, l_image_msg, r_info_msg, matches, inlier_indices);
         }
+
+#ifdef DBG_CREATE_VISUALIZATION_IMAGES
+        cv_bridge::CvImagePtr pImgL = cv_bridge::toCvCopy(l_image_msg, sensor_msgs::image_encodings::RGB8);
+
+        cv::Point2f pt1;
+        cv::Point2f pt2;
+        cv::Point2f ptd;
+
+        float ptDist = 0.0f;
+
+        Matcher::p_match 	goodMatch;
+
+        cv::Mat pxVal(1, 1, CV_8UC1, cv::Scalar(0));
+        cv::Mat pxRGB(1, 1, CV_8UC3, cv::Scalar(0, 0, 0));
+
+        if (success)
+        {
+          // Plot all matches
+          for (u_int32_t i = 0; i < matches.size(); ++i)
+          {
+            goodMatch = matches[i];
+
+            pt1.x = goodMatch.u1p;  pt1.y = goodMatch.v1p;
+            pt2.x = goodMatch.u1c;  pt2.y = goodMatch.v1c;
+
+            line(pImgL->image, pt1, pt2, cv::Scalar(255, 0, 0), 2);
+            line(pImgL->image, pt1, pt1, cv::Scalar(255, 0, 0), 5);
+          }
+
+          // Plot inliers
+          for (u_int32_t i = 0; i < inlier_indices.size(); ++i)
+          {
+            goodMatch = matches[inlier_indices[i]];
+
+            pt1.x = goodMatch.u1p; 	pt1.y = goodMatch.v1p;
+            pt2.x = goodMatch.u1c; 	pt2.y = goodMatch.v1c;
+
+            // Colormap
+            ptd = pt2 - pt1;
+            ptDist = sqrtf(ptd.x * ptd.x + ptd.y * ptd.y);
+            ptDist = rintf(ptDist * (84.0f / 35.0f));
+            pxVal.at<uchar>(0,0) = 84 - (ptDist <= 84 ? ptDist : 84);
+//						ROS_DEBUG("%.1f, %d", ptDist, pxVal.at<uchar>(0,0));
+            cv::applyColorMap(pxVal, pxRGB, cv::COLORMAP_HSV);
+//						ROS_DEBUG("%d, %d, %d", pxRGB.at<cv::Vec3b>(0, 0)[0], pxRGB.at<cv::Vec3b>(0, 0)[1], pxRGB.at<cv::Vec3b>(0, 0)[2]);
+
+            line(pImgL->image, pt1, pt2, cv::Scalar(pxRGB.at<cv::Vec3b>(0, 0)[0], pxRGB.at<cv::Vec3b>(0, 0)[1], pxRGB.at<cv::Vec3b>(0, 0)[2]), 2);
+            line(pImgL->image, pt1, pt1, cv::Scalar(pxRGB.at<cv::Vec3b>(0, 0)[0], pxRGB.at<cv::Vec3b>(0, 0)[1], pxRGB.at<cv::Vec3b>(0, 0)[2]), 5);
+          }
+        }
+
+        imshow("matches", pImgL->image);
+        cv::waitKey(1);
+
+  #ifdef DBG_CREATE_VISUALIZATION_IMAGES_PATH
+        // Write the image to disk
+        std::stringstream fnStream("");
+        fnStream << std::string(DBG_CREATE_VISUALIZATION_IMAGES_PATH) << std::string("/img_");
+        fnStream << std::setw(8) << std::setfill ('0') << l_image_msg->header.seq << ".png";
+        std::vector<int> compression_params;
+        compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+        compression_params.push_back(9);
+        cv::imwrite(fnStream.str(), pImgL->image, compression_params);
+    #endif
+#endif
       }
       else
       {
@@ -216,7 +445,7 @@ protected:
         integrateAndPublish(delta_transform, l_image_msg->header.stamp);
 
         ROS_DEBUG("Call to VisualOdometryStereo::process() failed.");
-        ROS_WARN_THROTTLE(10.0, "Visual Odometer got lost!");
+				ROS_WARN_THROTTLE(1.0, "Visual Odometer got lost!");
         got_lost_ = true;
       }
 
@@ -251,6 +480,23 @@ protected:
 
       if(!change_reference_frame_)
         ROS_DEBUG_STREAM("Changing reference frame");
+
+#ifdef DBG_EXPORT_TRAJECTORY
+      // Number of inliers
+			if (posestream_.is_open())
+			{
+				posestream_ << visual_odometer_->getNumberOfInliers() << std::endl;
+				posestream_.flush();
+			}
+			else
+			{
+				ROS_WARN("posestream not open");
+			}
+#endif
+
+      // Delay of the output
+      delay = ros::Time::now() - l_image_msg->header.stamp;
+      ROS_INFO("Output delay: %.3f", delay.toSec());
 
       // create and publish viso2 info msg
       VisoInfo info_msg;

@@ -1,7 +1,7 @@
 #include <ros/ros.h>
 
-#include <viso_stereo.h>
-#include <viso_mono.h>
+#include <libviso2/viso_stereo.h>
+#include <libviso2/viso_mono.h>
 
 namespace viso2_ros
 {
@@ -46,6 +46,7 @@ void loadParams(const ros::NodeHandle& local_nh, VisualOdometryStereo::parameter
   local_nh.getParam("ransac_iters",     params.ransac_iters);
   local_nh.getParam("inlier_threshold", params.inlier_threshold);
   local_nh.getParam("reweighting",      params.reweighting);
+  local_nh.getParam("cov_svd_factor",   params.cov_svd_factor);
 }
 
 /// loads common & mono specific params

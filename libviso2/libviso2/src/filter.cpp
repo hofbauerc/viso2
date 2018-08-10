@@ -23,7 +23,7 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include <string.h>
 #include <cassert>
 
-#include "filter.h"
+#include <libviso2/filter.h>
 
 // define fixed-width datatypes for Visual Studio projects
 #ifndef _MSC_VER

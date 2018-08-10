@@ -5,15 +5,49 @@
 #include <image_transport/image_transport.h>
 #include <image_geometry/pinhole_camera_model.h>
 
-#include <viso_mono.h>
+#include <libviso2/viso_mono.h>
 
 #include <viso2_ros/VisoInfo.h>
 
 #include "odometer_base.h"
 #include "odometry_params.h"
 
+/** Create a feature flow visualization window */
+//#define DBG_VISUALIZATION_IMAGES
+#ifdef DBG_VISUALIZATION_IMAGES
+/** Provide a "path/to/images" for storing flow visualization images there */
+#define DBG_VISUALIZATION_IMAGES_PATH "path/to/images"
+#include <opencv2/contrib/contrib.hpp>
+#include <opencv2/opencv.hpp>
+#include <strstream>
+#endif
+
 namespace viso2_ros
 {
+
+// doubled the values from stereo odometer
+static const boost::array<double, 36> STANDARD_POSE_COVARIANCE =
+{ { 0.2, 0, 0, 0, 0, 0,
+    0, 0.2, 0, 0, 0, 0,
+    0, 0, 0.2, 0, 0, 0,
+    0, 0, 0, 0.34, 0, 0,
+    0, 0, 0, 0, 0.34, 0,
+    0, 0, 0, 0, 0, 0.34 } };
+static const boost::array<double, 36> STANDARD_TWIST_COVARIANCE =
+{ { 0.10, 0, 0, 0, 0, 0,
+    0, 0.10, 0, 0, 0, 0,
+    0, 0, 0.10, 0, 0, 0,
+    0, 0, 0, 0.18, 0, 0,
+    0, 0, 0, 0, 0.18, 0,
+    0, 0, 0, 0, 0, 0.18 } };
+static const boost::array<double, 36> BAD_COVARIANCE =
+{ { 9999, 0, 0, 0, 0, 0,
+    0, 9999, 0, 0, 0, 0,
+    0, 0, 9999, 0, 0, 0,
+    0, 0, 0, 9999, 0, 0,
+    0, 0, 0, 0, 9999, 0,
+    0, 0, 0, 0, 0, 9999 } };
+
 
 class MonoOdometer : public OdometerBase
 {
@@ -117,16 +151,76 @@ protected:
         tf::Vector3 t(camera_motion.val[0][3], camera_motion.val[1][3], camera_motion.val[2][3]);
         tf::Transform delta_transform(rot_mat, t);
 
+        setPoseCovariance(STANDARD_POSE_COVARIANCE);
+        setTwistCovariance(STANDARD_TWIST_COVARIANCE);
+
         integrateAndPublish(delta_transform, image_msg->header.stamp);
       }
       else
       {
+        setPoseCovariance(BAD_COVARIANCE);
+        setTwistCovariance(BAD_COVARIANCE);
         ROS_DEBUG("Call to VisualOdometryMono::process() failed. Assuming motion too small.");
         replace_ = true;
         tf::Transform delta_transform;
         delta_transform.setIdentity();
         integrateAndPublish(delta_transform, image_msg->header.stamp);
       }
+
+#ifdef DBG_VISUALIZATION_IMAGES
+      ROS_INFO("Start creating visualization image");
+
+      cv_bridge::CvImagePtr pImgL = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::RGB8);
+
+      cv::Point2f pt1;
+      cv::Point2f pt2;
+      cv::Point2f ptd;
+
+      float ptDist = 0.0f;
+
+      Matcher::p_match 	goodMatch;
+
+      cv::Mat pxVal(1, 1, CV_8UC1, cv::Scalar(0));
+      cv::Mat pxRGB(1, 1, CV_8UC3, cv::Scalar(0, 0, 0));
+
+      std::vector<Matcher::p_match> matches = visual_odometer_->getMatches();
+      std::vector<int> inlier_indices = visual_odometer_->getInlierIndices();
+
+//      int widthPt = 5, widthLi = 2;
+      int widthPt = 2, widthLi = 1;
+
+      for (u_int32_t i = 0; i < inlier_indices.size(); ++i)
+      {
+    	  goodMatch = matches[inlier_indices[i]];
+
+    	  pt1.x = goodMatch.u1p; 	pt1.y = goodMatch.v1p;
+    	  pt2.x = goodMatch.u1c; 	pt2.y = goodMatch.v1c;
+
+    	  // Colormap
+    	  ptd = pt2 - pt1;
+    	  ptDist = sqrtf(ptd.x * ptd.x + ptd.y * ptd.y);
+    	  ptDist = rintf(ptDist * (84.0f / 35.0f));
+    	  pxVal.at<uchar>(0,0) = 84 - (ptDist <= 84 ? ptDist : 84);
+    	  cv::applyColorMap(pxVal, pxRGB, cv::COLORMAP_HSV);
+
+    	  line(pImgL->image, pt1, pt2, cv::Scalar(pxRGB.at<cv::Vec3b>(0, 0)[0], pxRGB.at<cv::Vec3b>(0, 0)[1], pxRGB.at<cv::Vec3b>(0, 0)[2]), widthLi);
+    	  line(pImgL->image, pt1, pt1, cv::Scalar(pxRGB.at<cv::Vec3b>(0, 0)[0], pxRGB.at<cv::Vec3b>(0, 0)[1], pxRGB.at<cv::Vec3b>(0, 0)[2]), widthPt);
+      }
+
+      imshow("matches", pImgL->image);
+      cv::waitKey(1);
+
+      // Write the image to disk
+  #ifdef DBG_VISUALIZATION_IMAGES_PATH
+      std::stringstream fnStream("");
+      fnStream << std::string(DBG_VISUALIZATION_IMAGES_PATH) << "/mono_img_";
+      fnStream << std::setw(8) << std::setfill ('0') << image_msg->header.seq << ".png";
+      std::vector<int> compression_params;
+      compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+      compression_params.push_back(9);
+      cv::imwrite(fnStream.str(), pImgL->image, compression_params);
+  #endif
+#endif
 
       // create and publish viso2 info msg
       VisoInfo info_msg;

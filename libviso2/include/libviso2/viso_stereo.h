@@ -22,6 +22,10 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #ifndef VISO_STEREO_H
 #define VISO_STEREO_H
 
+//#include <fstream>
+//#include <sstream>
+//#include <stdio.h>
+//#include <iomanip>
 #include "viso.h"
 
 class VisualOdometryStereo : public VisualOdometry {
@@ -34,11 +38,13 @@ public:
     int32_t ransac_iters;     // number of RANSAC iterations
     double  inlier_threshold; // fundamental matrix inlier threshold
     bool    reweighting;      // lower border weights (more robust to calibration errors)
+    double  cov_svd_factor;   // factor for covariance based on svd
     parameters () {
       base             = 1.0;
       ransac_iters     = 200;
       inlier_threshold = 2.0;
       reweighting      = true;
+      cov_svd_factor   = 200.0;
     }
   };
 

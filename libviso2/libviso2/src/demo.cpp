@@ -31,7 +31,7 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include <vector>
 #include <stdint.h>
 
-#include <viso_stereo.h>
+#include <libviso2/viso_stereo.h>
 #include <png++/png.hpp>
 
 using namespace std;
