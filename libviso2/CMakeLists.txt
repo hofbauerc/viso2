@@ -1,49 +1,45 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.5)
 project(libviso2)
 
-find_package(catkin REQUIRED )
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 
-option(ARM_CROSS_COMPILATION "ARM Cross Compilation" OFF)
-
-if(ARM_CROSS_COMPILATION)
-  SET(CMAKE_SYSTEM_PROCESSOR arm)
-  SET(CMAKE_CXX_FLAGS -mfpu=neon)
-else(ARM_CROSS_COMPILATION)
-  add_definitions(-msse3)
-endif(ARM_CROSS_COMPILATION)
-
-catkin_package(
-  INCLUDE_DIRS include libviso2/src
-  LIBRARIES viso2
-)
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic -O3)
+endif()
 
 include_directories(
-  include
-  libviso2/src
-  ${catkin_INCLUDE_DIRS}
-)
+        include
+        libviso2/src)
 
-add_library(viso2
-  libviso2/src/filter.cpp
-  libviso2/src/matcher.cpp
-  libviso2/src/matrix.cpp
-  libviso2/src/reconstruction.cpp
-  libviso2/src/triangle.cpp
-  libviso2/src/viso.cpp
-  libviso2/src/viso_mono.cpp
-  libviso2/src/viso_stereo.cpp)
+find_package(ament_cmake REQUIRED)
+
+add_library(viso2 SHARED
+        libviso2/src/filter.cpp
+        libviso2/src/matcher.cpp
+        libviso2/src/matrix.cpp
+        libviso2/src/reconstruction.cpp
+        libviso2/src/triangle.cpp
+        libviso2/src/viso.cpp
+        libviso2/src/viso_mono.cpp
+        libviso2/src/viso_stereo.cpp)
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
+ament_export_include_directories(include)
+ament_export_libraries(viso2)
+
+install(
+        DIRECTORY include/
+        DESTINATION include)
 
 install(TARGETS viso2
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION lib/${PROJECT_NAME})
 
-## Mark cpp header files for installation
-install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-  FILES_MATCHING PATTERN "*.h*"
-  PATTERN ".cpp" EXCLUDE
-  PATTERN ".svn" EXCLUDE
-)
-
+ament_package()

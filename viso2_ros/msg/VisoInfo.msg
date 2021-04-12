@@ -2,14 +2,14 @@
 # viso2 algorithm parameters
 # and results
 
-Header header
+std_msgs/Header header
 
 # True if the previous iteration of viso2
 # was not able to complete the matching process
 # therefore the visual odometer is re-started.
 bool got_lost
 
-# True if in the next run the reference 
+# True if in the next run the reference
 # frame will be changed. This is the case
 # when the number of inliers drops below
 # a threshold or the previous motion estimate

@@ -1,41 +1,41 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.5)
 project(viso2_ros)
 
-find_package(catkin REQUIRED COMPONENTS
-  libviso2
-  roscpp
-  sensor_msgs
-  nav_msgs
-  message_filters
-  image_transport
-  cv_bridge
-  image_geometry
-  tf
-  pcl_ros
-  std_srvs
-  message_generation
-)
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic -O3)
+endif()
+
+find_package(ament_cmake REQUIRED)
+find_package(builtin_interfaces REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
+
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(image_geometry REQUIRED)
+find_package(image_transport REQUIRED)
+find_package(libviso2 REQUIRED)
+find_package(image_geometry REQUIRED)
+find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
-find_package(PCL REQUIRED)
 
-option(ARM_CROSS_COMPILATION "ARM Cross Compilation" OFF)
-
-add_message_files( DIRECTORY msg FILES VisoInfo.msg)
-
-generate_messages(
-  DEPENDENCIES
-    std_msgs
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/VisoInfo.msg"
+  DEPENDENCIES builtin_interfaces std_msgs
+  ADD_LINTER_TESTS
 )
-
-catkin_package()
-
-if(ARM_CROSS_COMPILATION)
-  SET(CMAKE_SYSTEM_PROCESSOR arm)
-  SET(CMAKE_CXX_FLAGS -mfpu=neon)
-else(ARM_CROSS_COMPILATION)
-  add_definitions(-msse3)
-endif(ARM_CROSS_COMPILATION)
 
 include_directories(
     include
@@ -44,47 +44,41 @@ include_directories(
     ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(stereo_odometer
-  src/stereo_odometer.cpp)
-add_dependencies(stereo_odometer ${catkin_EXPORTED_TARGETS})
-add_dependencies(stereo_odometer ${PROJECT_NAME}_gencpp)
+add_executable(stereo_odometer src/stereo_odometer.cpp)
+rosidl_target_interfaces(stereo_odometer ${PROJECT_NAME} "rosidl_typesupport_cpp")
+ament_target_dependencies(stereo_odometer
+  "rclcpp"
+  "rclcpp_components"
+  "tf2"
+  "tf2_ros"
+  "tf2_geometry_msgs"
+  "std_msgs"
+  "std_srvs"
+  "diagnostic_msgs"
+  "sensor_msgs"
+  "nav_msgs"
+  "geometry_msgs"
+  "image_transport"
+  "libviso2"
+  "image_geometry"
+  "cv_bridge"
+  "OpenCV"
+)
 
-add_executable(mono_odometer
-  src/mono_odometer.cpp)
-add_dependencies(mono_odometer ${catkin_EXPORTED_TARGETS})
-add_dependencies(mono_odometer ${PROJECT_NAME}_gencpp)
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
+endif()
 
-target_link_libraries(stereo_odometer ${OpenCV_LIBRARIES} ${catkin_LIBRARIES})
-find_package(Boost REQUIRED COMPONENTS signals thread)
-include_directories(${Boost_INCLUDE_DIRS})
-target_link_libraries(stereo_odometer ${Boost_LIBRARIES} ${catkin_LIBRARIES})
-target_link_libraries(mono_odometer ${OpenCV_LIBRARIES} ${catkin_LIBRARIES})
-
-#############
-## Install ##
-#############
-
-# all install targets should use catkin DESTINATION variables
-# See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
-
-## Mark executable scripts (Python etc.) for installation
-## in contrast to setup.py, you can choose the destination
-# install(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
-
-## Mark executables and/or libraries for installation
 install(TARGETS stereo_odometer
-    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-    )
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION lib/${PROJECT_NAME})
 
-## Mark other files for installation (e.g. launch and bag files, etc.)
-install(FILES
-    launch/stereo_odometer.launch
-    # myfile2
-    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
-    )
+install(DIRECTORY launch/
+        DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY cfg DESTINATION share/${PROJECT_NAME})
+
+ament_export_dependencies(rosidl_default_runtime)
+ament_package()
 
