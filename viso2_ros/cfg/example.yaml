@@ -1,0 +1,37 @@
+stereo_odometer:
+  ros__parameters:
+    frame_odom: odom
+    frame_base_link: base_link
+
+    initialize_pose_as_id: true
+    publish_tf: true
+    wait_for_base_to_sensor: false
+    wait_for_velocities: false
+    
+    ref_frame:
+      change_method: FlowThreshold
+      motion_threshold: 5.0
+
+    match:
+      bucket_width: 70.0
+      bucket_height: 70.0
+      max_features: 6.0
+      match_radius: 300.0
+      match_disp_tolerance: 2.0
+      outlier_disp_tolerance: 5.0
+      outlier_flow_tolerance: 5.0
+      inlier_threshold: 1.5
+
+    covariance:
+      mode: SVD
+      svd_factor: 200.0
+      # mode: alternatively InlierBased
+      # nof_inliers_min: 150
+      # nof_inliers_ok: 250
+      # nof_inliers_good: 450
+      # cov_pos_min: 0.5
+      # cov_pos_ok: 0.2
+      # cov_pos_good: 0.02
+      # cov_ori_min: 0.2
+      # cov_ori_ok: 0.05
+      # cov_ori_good: 0.01

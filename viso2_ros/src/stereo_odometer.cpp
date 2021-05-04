@@ -30,21 +30,21 @@ namespace viso2_ros
 {
 
 // some arbitrary values (0.1m^2 linear cov. 10deg^2. angular cov.)
-    static const boost::array<double, 36> STANDARD_POSE_COVARIANCE =
+    static const std::array<double, 36> STANDARD_POSE_COVARIANCE =
             {{0.1, 0, 0, 0, 0, 0,
                      0, 0.1, 0, 0, 0, 0,
                      0, 0, 0.1, 0, 0, 0,
                      0, 0, 0, 0.17, 0, 0,
                      0, 0, 0, 0, 0.17, 0,
                      0, 0, 0, 0, 0, 0.17}};
-    static const boost::array<double, 36> STANDARD_TWIST_COVARIANCE =
+    static const std::array<double, 36> STANDARD_TWIST_COVARIANCE =
             {{0.05, 0, 0, 0, 0, 0,
                      0, 0.05, 0, 0, 0, 0,
                      0, 0, 0.05, 0, 0, 0,
                      0, 0, 0, 0.09, 0, 0,
                      0, 0, 0, 0, 0.09, 0,
                      0, 0, 0, 0, 0, 0.09}};
-    static const boost::array<double, 36> BAD_COVARIANCE =
+    static const std::array<double, 36> BAD_COVARIANCE =
             {{99999, 0, 0, 0, 0, 0,
                      0, 99999, 0, 0, 0, 0,
                      0, 0, 99999, 0, 0, 0,
@@ -58,7 +58,7 @@ namespace viso2_ros
 
     private:
 
-        boost::shared_ptr<VisualOdometryStereo> visual_odometer_;
+        std::shared_ptr<VisualOdometryStereo> visual_odometer_;
         VisualOdometryStereo::parameters visual_odometer_params_;
 
         rclcpp::Publisher<sensor_msgs::msg::PointCloud>::SharedPtr point_cloud_pub_;
@@ -340,7 +340,7 @@ namespace viso2_ros
                             RCLCPP_INFO(this->get_logger(), "nof inliers: %d  pos: %.3f  ori: %.3f", nof_inliers,
                                         covPos, covOri);
 
-                            boost::array<double, 36> pose_covariance =
+                            std::array<double, 36> pose_covariance =
                                     {{covPos, 0, 0, 0, 0, 0,
                                              0, covPos, 0, 0, 0, 0,
                                              0, 0, covPos, 0, 0, 0,
@@ -355,7 +355,7 @@ namespace viso2_ros
                         case CovModeSvd:
                         {
                             // Set the covariance from the estimation
-                            boost::array<double, 36> pose_covariance =
+                            std::array<double, 36> pose_covariance =
                                     {{visual_odometer_->getCovariance()[3], 0, 0, 0, 0, 0,
                                              0, visual_odometer_->getCovariance()[4], 0, 0, 0, 0,
                                              0, 0, visual_odometer_->getCovariance()[5], 0, 0, 0,

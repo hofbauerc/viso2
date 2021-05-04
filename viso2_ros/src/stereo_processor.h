@@ -1,7 +1,6 @@
 #ifndef STEREO_PROCESSOR_H_
 #define STEREO_PROCESSOR_H_
 
-#include <ros/ros.h>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 
@@ -34,8 +33,8 @@ namespace viso2_ros
         typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::Image, sensor_msgs::msg::Image, sensor_msgs::msg::CameraInfo, sensor_msgs::msg::CameraInfo> ApproximatePolicy;
         typedef message_filters::Synchronizer<ExactPolicy> ExactSync;
         typedef message_filters::Synchronizer<ApproximatePolicy> ApproximateSync;
-        boost::shared_ptr<ExactSync> exact_sync_;
-        boost::shared_ptr<ApproximateSync> approximate_sync_;
+        std::shared_ptr<ExactSync> exact_sync_;
+        std::shared_ptr<ApproximateSync> approximate_sync_;
         int queue_size_;
 
         // for sync checking
@@ -113,10 +112,10 @@ namespace viso2_ros
                     this, "right/image_rect/camera_info", rclcpp::SensorDataQoS().get_rmw_qos_profile());
 
             // Complain every 15s if the topics appear unsynchronized
-            left_sub_->registerCallback(boost::bind(StereoProcessor::increment, &left_received_));
-            right_sub_->registerCallback(boost::bind(StereoProcessor::increment, &right_received_));
-            left_info_sub_->registerCallback(boost::bind(StereoProcessor::increment, &left_info_received_));
-            right_info_sub_->registerCallback(boost::bind(StereoProcessor::increment, &right_info_received_));
+            left_sub_->registerCallback(std::bind(StereoProcessor::increment, &left_received_));
+            right_sub_->registerCallback(std::bind(StereoProcessor::increment, &right_received_));
+            left_info_sub_->registerCallback(std::bind(StereoProcessor::increment, &left_info_received_));
+            right_info_sub_->registerCallback(std::bind(StereoProcessor::increment, &right_info_received_));
             check_synced_timer_ =
                     this->create_wall_timer(5s, std::bind(&StereoProcessor::checkInputsSynchronized, this));
 

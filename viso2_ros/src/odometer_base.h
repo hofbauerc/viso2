@@ -77,8 +77,8 @@ namespace viso2_ros
         tf2::Stamped<tf2::Transform> initial_base_pose_;
 
         // covariances
-        boost::array<double, 36> pose_covariance_;
-        boost::array<double, 36> twist_covariance_;
+        std::array<double, 36> pose_covariance_;
+        std::array<double, 36> twist_covariance_;
 
 
     protected:
@@ -185,8 +185,8 @@ namespace viso2_ros
             base_to_sensor_set_ = false;
             initial_base_pose_set_ = false;
 
-            pose_covariance_.assign(0.0);
-            twist_covariance_.assign(0.0);
+            pose_covariance_.fill(0.0);
+            twist_covariance_.fill(0.0);
         }
 
         void setSensorFrameId(const std::string &frame_id)
@@ -199,12 +199,12 @@ namespace viso2_ros
             return sensor_frame_id_;
         }
 
-        void setPoseCovariance(const boost::array<double, 36> &pose_covariance)
+        void setPoseCovariance(const std::array<double, 36> &pose_covariance)
         {
             pose_covariance_ = pose_covariance;
         }
 
-        void setTwistCovariance(const boost::array<double, 36> &twist_covariance)
+        void setTwistCovariance(const std::array<double, 36> &twist_covariance)
         {
             twist_covariance_ = twist_covariance;
         }
@@ -407,7 +407,7 @@ namespace viso2_ros
          */
         void transformCovariance(
                 const tf2::Transform &tf,
-                boost::array<double, 36> &cov)
+                std::array<double, 36> &cov)
         {
             tf2::Matrix3x3 covT(cov[0], cov[1], cov[2],
                                 cov[6], cov[7], cov[8],
