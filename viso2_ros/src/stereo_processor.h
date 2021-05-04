@@ -27,7 +27,7 @@ namespace viso2_ros
     private:
 
         // subscriber
-        std::shared_ptr<image_transport::SubscriberFilter> left_sub_, right_sub_;
+        std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image>> left_sub_, right_sub_;
         std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::CameraInfo>> left_info_sub_, right_info_sub_;
         typedef message_filters::sync_policies::ExactTime<sensor_msgs::msg::Image, sensor_msgs::msg::Image, sensor_msgs::msg::CameraInfo, sensor_msgs::msg::CameraInfo> ExactPolicy;
         typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::Image, sensor_msgs::msg::Image, sensor_msgs::msg::CameraInfo, sensor_msgs::msg::CameraInfo> ApproximatePolicy;
@@ -101,11 +101,11 @@ namespace viso2_ros
                 rclcpp::Node(node_name, options),
                 left_received_(0), right_received_(0), left_info_received_(0), right_info_received_(0), all_received_(0)
         {
-            image_transport::TransportHints hints(this, "raw");
-            left_sub_ = std::make_shared<image_transport::SubscriberFilter>(
-                    this, "left/image_rect", hints.getTransport());
-            right_sub_ = std::make_shared<image_transport::SubscriberFilter>(
-                    this, "right/image_rect", hints.getTransport());
+            image_transport::TransportHints hints(this);
+            left_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(
+                    this, "left/image_rect", rclcpp::SensorDataQoS().get_rmw_qos_profile());
+            right_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(
+                    this, "right/image_rect", rclcpp::SensorDataQoS().get_rmw_qos_profile());
             left_info_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::CameraInfo>>(
                     this, "left/image_rect/camera_info", rclcpp::SensorDataQoS().get_rmw_qos_profile());
             right_info_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::CameraInfo>>(

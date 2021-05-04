@@ -81,7 +81,7 @@ namespace viso2_ros
         using SharedPtr = std::shared_ptr<StereoOdometer>;
 
         StereoOdometer(rclcpp::NodeOptions &options) :
-                StereoProcessor("stereo_odoemter_node", options),
+                StereoProcessor("stereo_odomter_node", options),
                 got_lost_(false),
                 change_reference_frame_(false),
                 odom_base_(static_cast<StereoProcessor *>(this))

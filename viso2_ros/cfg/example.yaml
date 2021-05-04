@@ -7,6 +7,7 @@ stereo_odometer:
     publish_tf: true
     wait_for_base_to_sensor: false
     wait_for_velocities: false
+    approximate_sync: true
     
     ref_frame:
       change_method: FlowThreshold

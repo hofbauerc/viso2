@@ -14,10 +14,10 @@ def generate_launch_description():
                 "example.yaml"
             )],
             remappings=[
-                ("left/image_rect", "/camera/left/image_rect"),
-                ("right/image_rect", "/camera/right/image_rect"),
-                ("left/image_rect/camera_info", "/camera/left/camera_info"),
-                ("right/image_rect/camera_info", "/camera/right/camera_info")
+                ("left/image_rect", "/camera/left/resized/image_rect"),
+                ("right/image_rect", "/camera/right/resized/image_rect"),
+                ("left/image_rect/camera_info", "/camera/left/resized/camera_info"),
+                ("right/image_rect/camera_info", "/camera/right/resized/camera_info")
             ]
         )
     ])
