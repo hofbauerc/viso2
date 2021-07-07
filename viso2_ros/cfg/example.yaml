@@ -4,7 +4,7 @@ stereo_odometer:
     frame_base_link: base_link
 
     initialize_pose_as_id: true
-    publish_tf: true
+    publish_tf: false
     wait_for_base_to_sensor: false
     wait_for_velocities: false
     approximate_sync: true

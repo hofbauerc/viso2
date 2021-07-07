@@ -11,6 +11,7 @@
 
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/buffer.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 //#define DBG_EXPORT_TRAJECTORY
 #ifdef DBG_EXPORT_TRAJECTORY
@@ -114,7 +115,7 @@ namespace viso2_ros
             odom_frame_id_ = node->declare_parameter("odom_frame_id", std::string("odom"));
             base_link_frame_id_ = node->declare_parameter("base_link_frame_id", std::string("base_link"));
             sensor_frame_id_ = node->declare_parameter("sensor_frame_id", std::string("camera"));
-            publish_tf_ = node->declare_parameter("publish_tf", true);
+            publish_tf_ = node->declare_parameter("publish_tf", false);
             invert_tf_ = node->declare_parameter("invert_tf", false);
             wait_for_base_to_sensor_ = node->declare_parameter("wait_for_base_to_sensor", false);
             wait_for_velocities_ = node->declare_parameter("wait_for_velocities", false);
