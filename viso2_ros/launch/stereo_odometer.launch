@@ -5,7 +5,7 @@
   <!--..........................................................................................................-->
   <!-- arguments to be set -->
 	<!-- frames -->
-	<arg name="frame_odom" 						  default="/odom" />
+	<arg name="frame_odom" 						  default="/world" />
 	<arg name="frame_base_link" 			  default="/base_link" />
 	<arg name="frame_postfix_sensor" 	  default="/sensor" />
 

@@ -2,13 +2,17 @@
 #ifndef ODOMETER_BASE_H_
 #define ODOMETER_BASE_H_
 
-#include <ros/ros.h>
-#include <nav_msgs/Odometry.h>
-#include <std_srvs/Empty.h>
+#include <rclcpp/rclcpp.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <geometry_msgs/msg/transform.hpp>
+#include <std_srvs/srv/empty.hpp>
 
-#include <tf/transform_listener.h>
-#include <tf/transform_broadcaster.h>
-
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 //#define DBG_EXPORT_TRAJECTORY
 #ifdef DBG_EXPORT_TRAJECTORY
 #include <fstream>
@@ -19,403 +23,413 @@ namespace viso2_ros
 {
 
 /** Different modes for setting the covariance matrix of the motion */
-typedef enum _CovarianceMode
-{
-  CovModeStandard = 0, ///< Setting covariances based on default values
-  CovModeInlierBased = 1, ///< Setting covariance based on the number of inliers found
-  CovModeSvd = 2 ///< SVD based covariance estimation
-} CovarianceMode;
+    typedef enum _CovarianceMode
+    {
+        CovModeStandard = 0, ///< Setting covariances based on default values
+        CovModeInlierBased = 1, ///< Setting covariance based on the number of inliers found
+        CovModeSvd = 2 ///< SVD based covariance estimation
+    } CovarianceMode;
 
 /**
  * Base class for odometers, handles tf's, odometry and pose
  * publishing. This can be used as base for any incremental pose estimating
  * sensor. Sensors that measure velocities cannot be used.
  */
-class OdometerBase
-{
+    class OdometerBase
+    {
 
-private:
+    private:
 
-  // publisher
-  ros::Publisher odom_pub_;
-  ros::Publisher pose_pub_;
+        rclcpp::Node *node_;
 
-  ros::ServiceServer reset_service_;
+        // publisher
+        rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
+        rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
 
-  // tf related
-  std::string sensor_frame_id_;
-  std::string odom_frame_id_;
-  std::string base_link_frame_id_;
-  tf::TransformListener tf_listener_;
-  tf::TransformBroadcaster tf_broadcaster_;
-  bool publish_tf_;
-  bool invert_tf_;
+        rclcpp::Service<std_srvs::srv::Empty>::SharedPtr reset_service_;
 
-  // the current integrated camera pose
-  tf::Transform integrated_pose_;
-  // timestamp of the last update
-  ros::Time last_update_time_;
-  // the latest motion of base to sensor <- added in order to avoid timing problems with the transform
-  tf::StampedTransform base_to_sensor_;
-  // indicates whether the transform from base to sensor has been set at least once
-  bool base_to_sensor_set_;
-  // enforces waiting for base <- sensor before publishing results
-  bool wait_for_base_to_sensor_;
-  // waits for correct velocities before publishing
-  bool wait_for_velocities_;
+        // tf related
+        std::string sensor_frame_id_;
+        std::string odom_frame_id_;
+        std::string base_link_frame_id_;
+        std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+        std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+        bool publish_tf_;
+        bool invert_tf_;
 
-  // initial pose of the base
-  bool initial_base_pose_is_id_;
-  bool initial_base_pose_set_;
-  tf::Transform initial_base_pose_;
+        // the current integrated camera pose
+        tf2::Transform integrated_pose_;
+        // timestamp of the last update
+        rclcpp::Time last_update_time_;
+        // the latest motion of base to sensor <- added in order to avoid timing problems with the transform
+        tf2::Stamped<tf2::Transform> base_to_sensor_;
+        std::shared_ptr<tf2_ros::Buffer> buffer_;
 
-  // covariances
-  boost::array<double, 36> pose_covariance_;
-  boost::array<double, 36> twist_covariance_;
+        // indicates whether the transform from base to sensor has been set at least once
+        bool base_to_sensor_set_;
+        // enforces waiting for base <- sensor before publishing results
+        bool wait_for_base_to_sensor_;
+        // waits for correct velocities before publishing
+        bool wait_for_velocities_;
+
+        // initial pose of the base
+        bool initial_base_pose_is_id_;
+        bool initial_base_pose_set_;
+        tf2::Stamped<tf2::Transform> initial_base_pose_;
+
+        // covariances
+        std::array<double, 36> pose_covariance_;
+        std::array<double, 36> twist_covariance_;
 
 
-protected:
+    protected:
 
 #ifdef DBG_EXPORT_TRAJECTORY
-  std::ofstream posestream_; ///< Stream for logging trajectory to CSV file
+        std::ofstream posestream_; ///< Stream for logging trajectory to CSV file
 #endif
 
-  // covariances
-  CovarianceMode cov_mode_; ///< Mode for setting the covariances of the result
-  int nof_inliers_min_; ///< Minimum number of inliers required
-  int nof_inliers_ok_; ///< Intermediate number of inliers
-  int nof_inliers_good_; ///< Number of inliers of high quality results
+    public:
+        CovarianceMode cov_mode; ///< Mode for setting the covariances of the result
+        // covariances
+        int nof_inliers_min; ///< Minimum number of inliers required
+        int nof_inliers_ok; ///< Intermediate number of inliers
+        int nof_inliers_good; ///< Number of inliers of high quality results
 
-  double cov_pos_min_; ///< Position covariance at minimum number of inliers required
-  double cov_pos_ok_; ///< Position covariance at intermediate number of inliers
-  double cov_pos_good_; ///< Position covariance at number of inliers of high quality results
+        double cov_pos_min; ///< Position covariance at minimum number of inliers required
+        double cov_pos_ok; ///< Position covariance at intermediate number of inliers
+        double cov_pos_good; ///< Position covariance at number of inliers of high quality results
 
-  double cov_ori_min_; ///< Orientation covariance at minimum number of inliers required
-  double cov_ori_ok_; ///< Orientation covariance at intermediate number of inliers
-  double cov_ori_good_; ///< Orientation covariance at number of inliers of high quality results
+        double cov_ori_min; ///< Orientation covariance at minimum number of inliers required
+        double cov_ori_ok; ///< Orientation covariance at intermediate number of inliers
+        double cov_ori_good; ///< Orientation covariance at number of inliers of high quality results
 
-
-public:
-
-  OdometerBase()
-  :
-	  tf_listener_(ros::Duration(5.0))
-  {
-    // Read local parameters
-    ros::NodeHandle local_nh("~");
-
-    local_nh.param("odom_frame_id", odom_frame_id_, std::string("/odom"));
-    local_nh.param("base_link_frame_id", base_link_frame_id_, std::string("/base_link"));
-    local_nh.param("sensor_frame_id", sensor_frame_id_, std::string("/camera"));
-    local_nh.param("publish_tf", publish_tf_, true);
-    local_nh.param("invert_tf", invert_tf_, false);
-    local_nh.param("wait_for_base_to_sensor", wait_for_base_to_sensor_, false);
-    local_nh.param("wait_for_velocities", wait_for_velocities_, false);
-    local_nh.param("initialize_pose_as_id", initial_base_pose_is_id_, true);
-
-    ROS_INFO_STREAM("Basic Odometer Settings:" << std::endl <<
-                    "  odom_frame_id      = " << odom_frame_id_ << std::endl <<
-                    "  base_link_frame_id = " << base_link_frame_id_ << std::endl <<
-                    "  publish_tf         = " << (publish_tf_?"true":"false") << std::endl <<
-                    "  invert_tf          = " << (invert_tf_?"true":"false"));
-
-    // covariance mode parameters
-    // Read parameters for setting covariance from the number of inliers
-    bool cov_from_inliers = true;
-    cov_from_inliers &= local_nh.getParam("nof_inliers_min", nof_inliers_min_);
-    cov_from_inliers &= local_nh.getParam("nof_inliers_ok", nof_inliers_ok_);
-    cov_from_inliers &= local_nh.getParam("nof_inliers_good", nof_inliers_good_);
-
-    cov_from_inliers &= local_nh.getParam("cov_pos_min",  cov_pos_min_);
-    cov_from_inliers &= local_nh.getParam("cov_pos_ok",  cov_pos_ok_);
-    cov_from_inliers &= local_nh.getParam("cov_pos_good",  cov_pos_good_);
-
-    cov_from_inliers &= local_nh.getParam("cov_ori_min",  cov_ori_min_);
-    cov_from_inliers &= local_nh.getParam("cov_ori_ok",  cov_ori_ok_);
-    cov_from_inliers &= local_nh.getParam("cov_ori_good",  cov_ori_good_);
-
-    cov_mode_ = cov_from_inliers ? CovModeInlierBased : CovModeStandard;
-    // Activate setting covariance from svd
-    int tmp_cov_mode = 0;
-    if (local_nh.getParam("cov_from_svd", tmp_cov_mode))
-      if (tmp_cov_mode == 2)
-        cov_mode_ = CovModeSvd;
-
-    // advertise
-    odom_pub_ = local_nh.advertise<nav_msgs::Odometry>("odometry", 2);
-    pose_pub_ = local_nh.advertise<geometry_msgs::PoseStamped>("pose", 2);
-
-    reset_service_ = local_nh.advertiseService("reset_pose", &OdometerBase::resetPose, this);
-
-    integrated_pose_.setIdentity();
-    base_to_sensor_.setIdentity();
-    initial_base_pose_.setIdentity();
-    base_to_sensor_set_ = false;
-    initial_base_pose_set_ = false;
-
-    pose_covariance_.assign(0.0);
-    twist_covariance_.assign(0.0);
-  }
-
-protected:
-
-  void setSensorFrameId(const std::string& frame_id)
-  {
-    sensor_frame_id_ = frame_id;
-  }
-
-  std::string getSensorFrameId() const
-  {
-    return sensor_frame_id_;
-  }
-
-  void setPoseCovariance(const boost::array<double, 36>& pose_covariance)
-  {
-    pose_covariance_ = pose_covariance;
-  }
-
-  void setTwistCovariance(const boost::array<double, 36>& twist_covariance)
-  {
-    twist_covariance_ = twist_covariance;
-  }
-
-  void integrateAndPublish(const tf::Transform& delta_transform, const ros::Time& timestamp)
-  {
-    if (sensor_frame_id_.empty())
-    {
-      ROS_ERROR("[odometer] update called with unknown sensor frame id!");
-      return;
-    }
-    if (timestamp < last_update_time_)
-    {
-      ROS_WARN("[odometer] saw negative time change in incoming sensor data, resetting pose.");
-      integrated_pose_.setIdentity();
-      tf_listener_.clear();
-    }
-
-    // integrate the pose
-    integrated_pose_ *= delta_transform;
-
-    // Try to get the transform from sensor to base
-    std::string error_msg;
-    if (tf_listener_.canTransform(base_link_frame_id_, sensor_frame_id_, timestamp, &error_msg))
-    {
-      tf_listener_.lookupTransform(
-          base_link_frame_id_,
-          sensor_frame_id_,
-          timestamp, base_to_sensor_);
-
-      base_to_sensor_set_ = true;
-    }
-    else
-    {
-      if (!base_to_sensor_set_)
-      {
-        ROS_WARN_THROTTLE(10.0, "The tf from '%s' to '%s' does not seem to be available, "
-                                "last one will be used!",
-                          base_link_frame_id_.c_str(),
-                          sensor_frame_id_.c_str());
-        ROS_DEBUG("Transform error: %s", error_msg.c_str());
-      }
-    }
-
-    // initialize the pose of base_link in odom or leave it set to id
-    if (!initial_base_pose_is_id_)
-    {
-      // Try to initialize trajectory with current odom <- base_link or odom <- base_link_init
-      if (!initial_base_pose_set_)
-      {
-        std::string error_msg;
-
-        if (tf_listener_.canTransform(odom_frame_id_, base_link_frame_id_, timestamp, &error_msg))
+        OdometerBase(rclcpp::Node *node) :
+                node_(node),
+                last_update_time_(0, 0)
         {
-          tf::StampedTransform initialial_base_pose_stf;
-          tf_listener_.lookupTransform(odom_frame_id_, base_link_frame_id_, timestamp, initialial_base_pose_stf);
-          initial_base_pose_ = tf::Transform(initialial_base_pose_stf.getRotation(), initialial_base_pose_stf.getOrigin());
 
-          // Set the actual integrated pose to the identity, so the result is initialzed with the trafo looked up
-          integrated_pose_.setIdentity();
+            buffer_ = std::make_shared<tf2_ros::Buffer>(node->get_node_clock_interface()->get_clock());
+            tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*buffer_);
+            tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(*node_);
+            // Read local parameters
+            odom_frame_id_ = node->declare_parameter("odom_frame_id", std::string("odom"));
+            base_link_frame_id_ = node->declare_parameter("base_link_frame_id", std::string("base_link"));
+            sensor_frame_id_ = node->declare_parameter("sensor_frame_id", std::string("camera"));
+            publish_tf_ = node->declare_parameter("publish_tf", false);
+            invert_tf_ = node->declare_parameter("invert_tf", false);
+            wait_for_base_to_sensor_ = node->declare_parameter("wait_for_base_to_sensor", false);
+            wait_for_velocities_ = node->declare_parameter("wait_for_velocities", false);
+            initial_base_pose_is_id_ = node->declare_parameter("initialize_pose_as_id", true);
 
-          initial_base_pose_set_ = true;
-          ROS_INFO("Trafo %s to %s AVAILABLE -> INITIALIZED stereo odometer", base_link_frame_id_.c_str(), odom_frame_id_.c_str());
-        }
-        else
-        {
-          std::string base_link_init_frame_id = base_link_frame_id_ + "_init";
+            RCLCPP_INFO_STREAM(node->get_logger(), "Basic Odometer Settings:" << std::endl <<
 
-          if (tf_listener_.canTransform(odom_frame_id_, base_link_init_frame_id, timestamp, &error_msg))
-          {
-            tf::StampedTransform initialial_base_pose_stf;
-            tf_listener_.lookupTransform(odom_frame_id_, base_link_init_frame_id, timestamp, initialial_base_pose_stf);
-            initial_base_pose_ = tf::Transform(initialial_base_pose_stf.getRotation(), initialial_base_pose_stf.getOrigin());
+                                                                              "  odom_frame_id      = "
+                                                                              << odom_frame_id_ << std::endl <<
+                                                                              "  base_link_frame_id = "
+                                                                              << base_link_frame_id_ << std::endl <<
+                                                                              "  publish_tf         = "
+                                                                              << (publish_tf_ ? "true" : "false")
+                                                                              << std::endl <<
+                                                                              "  invert_tf          = "
+                                                                              << (invert_tf_ ? "true" : "false"));
 
-            // Set the actual integrated pose to the identity, so the result is initialzed with the trafo looked up
+            // TODO
+            // covariance mode parameters
+            // Read parameters for setting covariance from the number of inliers
+            bool cov_from_inliers = true;
+            cov_from_inliers &= node_->has_parameter("nof_inliers_min");
+            cov_from_inliers &= node_->has_parameter("nof_inliers_ok");
+            cov_from_inliers &= node_->has_parameter("nof_inliers_good");
+
+            cov_from_inliers &= node_->has_parameter("cov_pos_min");
+            cov_from_inliers &= node_->has_parameter("cov_pos_ok");
+            cov_from_inliers &= node_->has_parameter("cov_pos_good");
+
+            cov_from_inliers &= node_->has_parameter("cov_ori_min");
+            cov_from_inliers &= node_->has_parameter("cov_ori_ok");
+            cov_from_inliers &= node_->has_parameter("cov_ori_good");
+
+            cov_mode = cov_from_inliers ? CovModeInlierBased : CovModeStandard;
+            // Activate setting covariance from svd
+            if (node_->has_parameter("cov_from_svd"))
+                if (node_->get_parameter("cov_from_svd").as_int() == 2)
+                    cov_mode = CovModeSvd;
+
+            if (cov_mode == CovModeInlierBased)
+            {
+                nof_inliers_min = node_->get_parameter("nof_inliers_min").as_int();
+                nof_inliers_ok = node_->get_parameter("nof_inliers_ok").as_int();
+                nof_inliers_good = node_->get_parameter("nof_inliers_good").as_int();
+
+                cov_pos_min = node_->get_parameter("cov_pos_min").as_double();
+                cov_pos_ok = node_->get_parameter("cov_pos_ok").as_double();
+                cov_pos_good = node_->get_parameter("cov_pos_good").as_double();
+
+                cov_ori_min = node_->get_parameter("cov_ori_min").as_double();
+                cov_ori_ok = node_->get_parameter("cov_ori_ok").as_double();
+                cov_ori_good = node_->get_parameter("cov_ori_good").as_double();
+            }
+
+            // advertise
+            odom_pub_ = node->create_publisher<nav_msgs::msg::Odometry>("odometry", 2);
+            pose_pub_ = node->create_publisher<geometry_msgs::msg::PoseStamped>("pose", 2);
+
+            // TODO
+            reset_service_ = node_->create_service<std_srvs::srv::Empty>("reset_pose",
+                                                                         std::bind(&OdometerBase::resetPose, this,
+                                                                                   std::placeholders::_1,
+                                                                                   std::placeholders::_2));
+
             integrated_pose_.setIdentity();
+            base_to_sensor_.setIdentity();
+            initial_base_pose_.setIdentity();
+            base_to_sensor_set_ = false;
+            initial_base_pose_set_ = false;
 
-            initial_base_pose_set_ = true;
-            ROS_INFO("Trafo %s to %s AVAILABLE -> INITIALIZED stereo odometer", base_link_init_frame_id.c_str(), odom_frame_id_.c_str());
-          }
-          else
-          {
-            ROS_WARN("Trafo %s (or %s) to %s NOT available -> Cannot initialize stereo odometer", base_link_frame_id_.c_str(), base_link_init_frame_id.c_str(), odom_frame_id_.c_str());
-            return;
-          }
+            pose_covariance_.fill(0.0);
+            twist_covariance_.fill(0.0);
         }
-      }
-    }
 
-    // transform integrated pose to base frame
-    tf::Transform base_transform = initial_base_pose_ * base_to_sensor_ * integrated_pose_ * base_to_sensor_.inverse();
+        void setSensorFrameId(const std::string &frame_id)
+        {
+            sensor_frame_id_ = frame_id;
+        }
 
-    // Also transform the covariances
-    transformCovariance(base_to_sensor_, pose_covariance_);
-    transformCovariance(base_to_sensor_, twist_covariance_);
+        std::string getSensorFrameId() const
+        {
+            return sensor_frame_id_;
+        }
 
-    ROS_DEBUG("cov in body: %.3f %.3f %.3f %.3f %.3f %.3f",
-              pose_covariance_[ 0], pose_covariance_[ 7], pose_covariance_[14],
-              pose_covariance_[21], pose_covariance_[28], pose_covariance_[35]);
+        void setPoseCovariance(const std::array<double, 36> &pose_covariance)
+        {
+            pose_covariance_ = pose_covariance;
+        }
 
-    nav_msgs::Odometry odometry_msg;
-    odometry_msg.header.stamp = timestamp;
-    odometry_msg.header.frame_id = odom_frame_id_;
-    odometry_msg.child_frame_id = base_link_frame_id_;
-    tf::poseTFToMsg(base_transform, odometry_msg.pose.pose);
+        void setTwistCovariance(const std::array<double, 36> &twist_covariance)
+        {
+            twist_covariance_ = twist_covariance;
+        }
 
-    // calculate twist (not possible for first run as no delta_t can be computed)
-    tf::Transform delta_base_transform = base_to_sensor_ * delta_transform * base_to_sensor_.inverse();
-    if (!last_update_time_.isZero())
-    {
-      double delta_t = (timestamp - last_update_time_).toSec();
-      if (delta_t)
-      {
-        odometry_msg.twist.twist.linear.x = delta_base_transform.getOrigin().getX() / delta_t;
-        odometry_msg.twist.twist.linear.y = delta_base_transform.getOrigin().getY() / delta_t;
-        odometry_msg.twist.twist.linear.z = delta_base_transform.getOrigin().getZ() / delta_t;
-        tf::Quaternion delta_rot = delta_base_transform.getRotation();
-        tfScalar angle = delta_rot.getAngle();
-        tf::Vector3 axis = delta_rot.getAxis();
-        tf::Vector3 angular_twist = axis * angle / delta_t;
-        odometry_msg.twist.twist.angular.x = angular_twist.x();
-        odometry_msg.twist.twist.angular.y = angular_twist.y();
-        odometry_msg.twist.twist.angular.z = angular_twist.z();
-      }
-    }
+        void integrateAndPublish(const tf2::Transform &delta_transform, const rclcpp::Time &timestamp)
+        {
+            if (sensor_frame_id_.empty())
+            {
+                RCLCPP_ERROR(node_->get_logger(), "[odometer] update called with unknown sensor frame id!");
+                return;
+            }
+            if (timestamp.seconds() < last_update_time_.seconds())
+            {
+                RCLCPP_WARN(node_->get_logger(),
+                            "[odometer] saw negative time change in incoming sensor data, resetting pose.");
+                integrated_pose_.setIdentity();
+                buffer_->clear();
+            }
 
-    // Check if base <- sensor and or velocities are mandatory for publishing and only publish if available
-    bool publish_result =
-            (!wait_for_base_to_sensor_ || base_to_sensor_set_) &&
-            (!wait_for_velocities_ || !last_update_time_.isZero());
+            // integrate the pose
+            integrated_pose_ *= delta_transform;
 
-    odometry_msg.pose.covariance = pose_covariance_;
-    odometry_msg.twist.covariance = twist_covariance_;
+            // Try to get the transform from sensor to base
+            std::string error_msg;
+            if (buffer_->canTransform(base_link_frame_id_, sensor_frame_id_,  tf2::TimePointZero))
+            {
+                geometry_msgs::msg::TransformStamped base_to_sensor_stf =
+                        buffer_->lookupTransform(base_link_frame_id_, sensor_frame_id_, timestamp);
+                tf2::convert(base_to_sensor_stf, base_to_sensor_);
+                base_to_sensor_set_ = true;
+            }
+            else
+            {
+                if (!base_to_sensor_set_)
+                {
+                    RCLCPP_ERROR(node_->get_logger(), "Transform error: %s", error_msg.c_str());
+                }
+            }
 
-    geometry_msgs::PoseStamped pose_msg;
-    pose_msg.header.stamp = odometry_msg.header.stamp;
-    pose_msg.header.frame_id = odometry_msg.header.frame_id;
-    pose_msg.pose = odometry_msg.pose.pose;
+            // initialize the pose of base_link in odom or leave it set to id
+            if (!initial_base_pose_is_id_)
+            {
+                // Try to initialize trajectory with current odom <- base_link or odom <- base_link_init
+                if (!initial_base_pose_set_)
+                {
+                    std::string error_msg;
 
-    if (publish_result)
-    {
-        odom_pub_.publish(odometry_msg);
-        pose_pub_.publish(pose_msg);
-    }
+                    if (buffer_->canTransform(odom_frame_id_, base_link_frame_id_, tf2::TimePointZero))
+                    {
+                        geometry_msgs::msg::TransformStamped initialial_base_pose_stf =
+                                buffer_->lookupTransform(odom_frame_id_, base_link_frame_id_, timestamp);
+                        tf2::convert(initialial_base_pose_stf, initial_base_pose_);
 
-#ifdef DBG_EXPORT_TRAJECTORY
-    // Base pose
-    if (posestream_.is_open())
-    {
-    	tf::Quaternion integrated_campose_q(integrated_pose_.getRotation());
+                        // Set the actual integrated pose to the identity, so the result is initialzed with the trafo looked up
+                        integrated_pose_.setIdentity();
 
-    	posestream_
-    		<< odometry_msg.header.stamp.sec << ", "
-    		<< odometry_msg.header.stamp.nsec << ", "
-    		<< odometry_msg.pose.pose.position.x << ", "
-    		<< odometry_msg.pose.pose.position.y << ", "
-    		<< odometry_msg.pose.pose.position.z << ", "
-    		<< odometry_msg.pose.pose.orientation.x << ", "
-    		<< odometry_msg.pose.pose.orientation.y << ", "
-    		<< odometry_msg.pose.pose.orientation.z << ", "
-    		<< odometry_msg.pose.pose.orientation.w << ", "
-    		<< odometry_msg.twist.twist.linear.x << ", "
-    		<< odometry_msg.twist.twist.linear.y << ", "
-    		<< odometry_msg.twist.twist.linear.z << ", "
-    		<< odometry_msg.twist.twist.angular.x << ", "
-    		<< odometry_msg.twist.twist.angular.y << ", "
-    		<< odometry_msg.twist.twist.angular.z << ", "
-    		<< integrated_pose_.getOrigin().x() << ", "
-			  << integrated_pose_.getOrigin().y() << ", "
-			  << integrated_pose_.getOrigin().z() << ", "
-    		<< integrated_campose_q.x() << ", "
-    		<< integrated_campose_q.y() << ", "
-    		<< integrated_campose_q.z() << ", "
-    		<< integrated_campose_q.w() << ", ";
+                        initial_base_pose_set_ = true;
+                        RCLCPP_INFO(node_->get_logger(), "Trafo %s to %s AVAILABLE -> INITIALIZED stereo odometer",
+                                    base_link_frame_id_.c_str(), odom_frame_id_.c_str());
+                    }
+                    else
+                    {
+                        std::string base_link_init_frame_id = base_link_frame_id_ + "_init";
 
-    	posestream_.flush();
-    }
-    else
-    {
-    	ROS_WARN("posestream not open");
-    }
-#endif
+                        if (buffer_->canTransform(odom_frame_id_, base_link_init_frame_id, tf2::TimePointZero))
+                        {
+                            geometry_msgs::msg::TransformStamped initial_base_pose_stf =
+                                    buffer_->lookupTransform(odom_frame_id_, base_link_init_frame_id, timestamp);
+                            tf2::convert(initial_base_pose_stf, initial_base_pose_);
 
-    if (publish_tf_ && publish_result)
-    {
-      if (invert_tf_)
-      {
-        tf_broadcaster_.sendTransform(
-          tf::StampedTransform(base_transform.inverse(), timestamp,
-                               base_link_frame_id_, odom_frame_id_));
-      }
-      else
-      {
-        tf_broadcaster_.sendTransform(
-          tf::StampedTransform(base_transform, timestamp,
-                               odom_frame_id_, base_link_frame_id_));
-      }
-    }
+                            // Set the actual integrated pose to the identity, so the result is initialzed with the trafo looked up
+                            integrated_pose_.setIdentity();
 
-    last_update_time_ = timestamp;
-  }
+                            initial_base_pose_set_ = true;
+                            RCLCPP_INFO(node_->get_logger(), "Trafo %s to %s AVAILABLE -> INITIALIZED stereo odometer",
+                                        base_link_init_frame_id.c_str(), odom_frame_id_.c_str());
+                        }
+                        else
+                        {
+                            RCLCPP_WARN(node_->get_logger(),
+                                        "Trafo %s (or %s) to %s NOT available -> Cannot initialize stereo odometer",
+                                        base_link_frame_id_.c_str(), base_link_init_frame_id.c_str(),
+                                        odom_frame_id_.c_str());
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // transform integrated pose to base frame
+            tf2::Transform base_transform =
+                    initial_base_pose_ * base_to_sensor_ * integrated_pose_ * base_to_sensor_.inverse();
+
+            // Also transform the covariances
+            transformCovariance(base_to_sensor_, pose_covariance_);
+            transformCovariance(base_to_sensor_, twist_covariance_);
+
+            RCLCPP_DEBUG(node_->get_logger(), "cov in body: %.3f %.3f %.3f %.3f %.3f %.3f",
+                         pose_covariance_[0], pose_covariance_[7], pose_covariance_[14],
+                         pose_covariance_[21], pose_covariance_[28], pose_covariance_[35]);
+
+            nav_msgs::msg::Odometry odometry_msg;
+            odometry_msg.header.stamp = timestamp;
+            odometry_msg.header.frame_id = odom_frame_id_;
+            odometry_msg.child_frame_id = base_link_frame_id_;
+            odometry_msg.pose.pose.position.x = base_transform.getOrigin().x();
+            odometry_msg.pose.pose.position.y = base_transform.getOrigin().y();
+            odometry_msg.pose.pose.position.z = base_transform.getOrigin().z();
+            odometry_msg.pose.pose.orientation.w = base_transform.getRotation().w();
+            odometry_msg.pose.pose.orientation.x = base_transform.getRotation().x();
+            odometry_msg.pose.pose.orientation.y = base_transform.getRotation().y();
+            odometry_msg.pose.pose.orientation.z = base_transform.getRotation().z();
+
+            // calculate twist (not possible for first run as no delta_t can be computed)
+            tf2::Transform delta_base_transform = base_to_sensor_ * delta_transform * base_to_sensor_.inverse();
+            if (last_update_time_.seconds() > rclcpp::Time(0, 0).seconds())
+            {
+                double delta_t = (timestamp - last_update_time_).seconds();
+                if (delta_t != 0.0)
+                {
+                    odometry_msg.twist.twist.linear.x = delta_base_transform.getOrigin().getX() / delta_t;
+                    odometry_msg.twist.twist.linear.y = delta_base_transform.getOrigin().getY() / delta_t;
+                    odometry_msg.twist.twist.linear.z = delta_base_transform.getOrigin().getZ() / delta_t;
+                    tf2::Quaternion delta_rot = delta_base_transform.getRotation();
+                    tf2Scalar angle = delta_rot.getAngle();
+                    tf2::Vector3 axis = delta_rot.getAxis();
+                    tf2::Vector3 angular_twist = axis * angle / delta_t;
+                    odometry_msg.twist.twist.angular.x = angular_twist.x();
+                    odometry_msg.twist.twist.angular.y = angular_twist.y();
+                    odometry_msg.twist.twist.angular.z = angular_twist.z();
+                }
+            }
+
+            // Check if base <- sensor and or velocities are mandatory for publishing and only publish if available
+            bool publish_result =
+                    (!wait_for_base_to_sensor_ || base_to_sensor_set_) &&
+                    (!wait_for_velocities_ || last_update_time_ != rclcpp::Time(0, 0));
+
+            // TODO:
+            for (int i = 0; i < 36; ++i)
+            {
+                odometry_msg.pose.covariance[i] = pose_covariance_[i];
+                odometry_msg.twist.covariance[i] = twist_covariance_[i];
+            }
+
+            geometry_msgs::msg::PoseStamped pose_msg;
+            pose_msg.header.stamp = odometry_msg.header.stamp;
+            pose_msg.header.frame_id = odometry_msg.header.frame_id;
+            pose_msg.pose = odometry_msg.pose.pose;
+
+            if (publish_result)
+            {
+                odom_pub_->publish(odometry_msg);
+                pose_pub_->publish(pose_msg);
+            }
+
+            if (publish_tf_ && publish_result)
+            {
+                if (invert_tf_)
+                {
+                    geometry_msgs::msg::Transform tf;
+                    tf2::convert(base_transform.inverse(), tf);
+                    geometry_msgs::msg::TransformStamped tfs;
+                    tfs.transform = tf;
+                    tfs.header.stamp = timestamp;
+                    tfs.header.frame_id = base_link_frame_id_;
+                    tfs.child_frame_id = odom_frame_id_;
+                    tf_broadcaster_->sendTransform(tfs);
+                }
+                else
+                {
+                    geometry_msgs::msg::Transform tf;
+                    tf2::convert(base_transform, tf);
+                    geometry_msgs::msg::TransformStamped tfs;
+                    tfs.transform = tf;
+                    tfs.header.stamp = timestamp;
+                    tfs.header.frame_id = odom_frame_id_;
+                    tfs.child_frame_id = base_link_frame_id_;
+                    tf_broadcaster_->sendTransform(tfs);
+                }
+            }
+
+            last_update_time_ = timestamp;
+        }
 
 
-  bool resetPose(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
-  {
-    integrated_pose_.setIdentity();
-    return true;
-  }
+        bool resetPose(std_srvs::srv::Empty::Request::SharedPtr, std_srvs::srv::Empty::Response::SharedPtr)
+        {
+            integrated_pose_.setIdentity();
+            return true;
+        }
 
-  /**
-   * \brief Transforms the covariance matrix of either the pose or the twist.
-   * \param[in] tf Linear transformation that should be applied
-   * \param[in,out] cov Covariance matrix that is transformed in place
-   */
-  void transformCovariance(
-    const tf::Transform       &tf,
-    boost::array<double, 36>  &cov)
-  {
-    tf::Matrix3x3 covT(cov[ 0], cov[ 1], cov[ 2],
-                       cov[ 6], cov[ 7], cov[ 8],
-                       cov[12], cov[13], cov[14]);
+        /**
+         * \brief Transforms the covariance matrix of either the pose or the twist.
+         * \param[in] tf Linear transformation that should be applied
+         * \param[in,out] cov Covariance matrix that is transformed in place
+         */
+        void transformCovariance(
+                const tf2::Transform &tf,
+                std::array<double, 36> &cov)
+        {
+            tf2::Matrix3x3 covT(cov[0], cov[1], cov[2],
+                                cov[6], cov[7], cov[8],
+                                cov[12], cov[13], cov[14]);
 
-    tf::Matrix3x3 covR(cov[21], cov[22], cov[23],
-                       cov[27], cov[28], cov[29],
-                       cov[33], cov[34], cov[35]);
+            tf2::Matrix3x3 covR(cov[21], cov[22], cov[23],
+                                cov[27], cov[28], cov[29],
+                                cov[33], cov[34], cov[35]);
 
-    covT = tf.getBasis() * covT * tf.getBasis().transpose();
-    covR = tf.getBasis() * covR * tf.getBasis().transpose();
+            covT = tf.getBasis() * covT * tf.getBasis().transpose();
+            covR = tf.getBasis() * covR * tf.getBasis().transpose();
 
-    for (int r = 0; r < 3; ++r)
-    {
-      cov[r*6  ] = covT.getRow(r).x();
-      cov[r*6+1] = covT.getRow(r).y();
-      cov[r*6+2] = covT.getRow(r).z();
+            for (int r = 0; r < 3; ++r)
+            {
+                cov[r * 6] = covT.getRow(r).x();
+                cov[r * 6 + 1] = covT.getRow(r).y();
+                cov[r * 6 + 2] = covT.getRow(r).z();
 
-      cov[(r+3)*6+3] = covR.getRow(r).x();
-      cov[(r+3)*6+4] = covR.getRow(r).y();
-      cov[(r+3)*6+5] = covR.getRow(r).z();
-    }
-  }
-};
+                cov[(r + 3) * 6 + 3] = covR.getRow(r).x();
+                cov[(r + 3) * 6 + 4] = covR.getRow(r).y();
+                cov[(r + 3) * 6 + 5] = covR.getRow(r).z();
+            }
+        }
+    };
 
 } // end of namespace
 

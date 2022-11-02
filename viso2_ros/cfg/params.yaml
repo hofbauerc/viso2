@@ -1,0 +1,50 @@
+/**:
+  ros__parameters:
+    use_sim_time: true
+
+stereo_odometer_node:
+  ros__parameters:
+    odom_frame_id: world
+    base_link_frame_id: base_link
+    sensor_frame_id: camera
+
+    initialize_pose_as_id: true
+    publish_tf: true
+    invert_tf: true
+    wait_for_base_to_sensor: false
+    wait_for_velocities: false
+    approximate_sync: true
+    
+    ref_frame:
+      change_method: FlowThreshold
+      motion_threshold: 5.0
+
+    match:
+      bucket_width: 70.0
+      bucket_height: 70.0
+      max_features: 6
+      match_radius: 300
+      match_disp_tolerance: 2
+      outlier_disp_tolerance: 5
+      outlier_flow_tolerance: 5
+      inlier_threshold: 1.5
+
+    covariance:
+      mode: SVD
+      svd_factor: 200.0
+      # mode: alternatively InlierBased
+      # nof_inliers_min: 150
+      # nof_inliers_ok: 250
+      # nof_inliers_good: 450
+      # cov_pos_min: 0.5
+      # cov_pos_ok: 0.2
+      # cov_pos_good: 0.02
+      # cov_ori_min: 0.2
+      # cov_ori_ok: 0.05
+      # cov_ori_good: 0.01
+
+transform_odom_node:
+  ros__parameters:
+    sub_odom_topic: "/odometry"
+    pub_odom_topic: "tf_odometry"
+    trnasformed_odom_frame: "world"
